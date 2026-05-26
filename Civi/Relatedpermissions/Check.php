@@ -11,7 +11,7 @@ class Check extends AutoSubscriber {
 
   public static function getSubscribedEvents() {
     return [
-      '&hook_civicrm_aclWhereClause' => ['hook_civicrm_aclWhereClause'],
+      '&hook_civicrm_aclWhereClause' => ['aclWhereClause'],
       'civi.api4.authorizeRecord' => ['onApiAuthorizeRecord'],
       'civi.api.authorize' => ['onApiAuthorize'],
     ];
@@ -174,7 +174,7 @@ class Check extends AutoSubscriber {
    * Implement WHERE Clause - we find the contacts for whom this contact has permission and
    * specifically give permission to them
    */
-  function hook_civicrm_aclWhereClause($type, &$tables, &$whereTables, &$contactID, &$where) {
+  function aclWhereClause($type, &$tables, &$whereTables, &$contactID, &$where) {
     if (!$contactID) {
       return;
     }
@@ -212,7 +212,8 @@ class Check extends AutoSubscriber {
       return;
     }
 
-    if ($apiRequest->getEntityName() !== 'Contact') {
+    // We probably want to make this a setting at some point since custom subtypes aren't included
+    if (!in_array($apiRequest->getEntityName(), ['Contact', 'Individual', 'Household', 'Organization'])) {
       return;
     }
 
@@ -251,7 +252,7 @@ class Check extends AutoSubscriber {
     }
 
     // Contact.getFields/getActions should be allowed if contact can see/edit one or more contacts
-    if (in_array($apiRequest->getEntityName(), ['Contact', 'Email'])
+    if (in_array($apiRequest->getEntityName(), ['Contact', 'Individual', 'Organization', 'Email', 'Relationship'])
       && in_array($apiRequest->getActionName(), ['getFields', 'getActions'])) {
 
       $loggedInContactID = \CRM_Core_Session::getLoggedInContactID();
@@ -282,12 +283,7 @@ class Check extends AutoSubscriber {
         $permissionType = \CRM_Core_Permission::VIEW;
     }
 
-    $contact = Contact::get(FALSE)
-      ->addSelect('id', 'contact_type')
-      ->addWhere('id', '=', $loggedInContactID)
-      ->execute()
-      ->first();
-    $this->buildPermissionsTable($contact['id'], $permissionType);
+    $this->buildPermissionsTable($loggedInContactID, $permissionType);
   }
 
 }
