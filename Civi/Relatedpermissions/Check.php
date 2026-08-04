@@ -2,7 +2,6 @@
 namespace Civi\Relatedpermissions;
 
 use Civi\API\Events;
-use Civi\Api4\Contact;
 use Civi\Api4\Event\AuthorizeRecordEvent;
 use Civi\Core\Service\AutoSubscriber;
 use CRM_Relatedpermissions_ExtensionUtil as E;
@@ -11,7 +10,7 @@ class Check extends AutoSubscriber {
 
   public static function getSubscribedEvents() {
     return [
-      '&hook_civicrm_aclWhereClause' => ['hook_civicrm_aclWhereClause'],
+      '&hook_civicrm_aclWhereClause' => ['aclWhereClause'],
       'civi.api4.authorizeRecord' => ['onApiAuthorizeRecord'],
       'civi.api.authorize' => ['onApiAuthorize'],
     ];
@@ -77,24 +76,24 @@ class Check extends AutoSubscriber {
     }
 
     $sql = "INSERT INTO $this->tmpTableName
-    SELECT DISTINCT contact_id_a FROM civicrm_relationship
-    WHERE contact_id_b = $contactID
-    AND is_active = 1
-    AND (start_date IS NULL OR start_date <= '{$now}' )
-    AND (end_date IS NULL OR end_date >= '{$now}')
-    AND is_permission_b_a $permissionClause
-  ";
+      SELECT DISTINCT contact_id_a FROM civicrm_relationship
+      WHERE contact_id_b = $contactID
+      AND is_active = 1
+      AND (start_date IS NULL OR start_date <= '{$now}' )
+      AND (end_date IS NULL OR end_date >= '{$now}')
+      AND is_permission_b_a $permissionClause
+    ";
 
     \CRM_Core_DAO::executeQuery($sql);
 
     $sql = "REPLACE INTO $this->tmpTableName
-    SELECT contact_id_b FROM civicrm_relationship
-    WHERE contact_id_a = $contactID
-    AND is_active = 1
-    AND (start_date IS NULL OR start_date <= '{$now}' )
-    AND (end_date IS NULL OR end_date >= '{$now}')
-    AND is_permission_a_b $permissionClause
-  ";
+      SELECT contact_id_b FROM civicrm_relationship
+      WHERE contact_id_a = $contactID
+      AND is_active = 1
+      AND (start_date IS NULL OR start_date <= '{$now}' )
+      AND (end_date IS NULL OR end_date >= '{$now}')
+      AND is_permission_a_b $permissionClause
+    ";
 
     \CRM_Core_DAO::executeQuery($sql);
 
@@ -111,12 +110,14 @@ class Check extends AutoSubscriber {
       while ($continue > 0) {
         $this->calculateInheritedPermissions($tmpTableSecondaryContacts, $now, $permissionClause);
         $newPotentialPermissionInheritingContacts = \CRM_Core_DAO::singleValueQuery("
-     SELECT count(*) FROM $tmpTableSecondaryContacts s
-     LEFT JOIN $this->tmpTableName m ON s.contact_id = m.contact_id
-     WHERE m.contact_id IS NULL AND s.contact_type IN ('Organization', 'Household')");
+          SELECT count(*) FROM $tmpTableSecondaryContacts s
+          LEFT JOIN $this->tmpTableName m ON s.contact_id = m.contact_id
+          WHERE m.contact_id IS NULL AND s.contact_type IN ('Organization', 'Household')
+         ");
+
         $sql = "REPLACE INTO $this->tmpTableName
-      SELECT contact_id FROM $tmpTableSecondaryContacts
-    ";
+          SELECT contact_id FROM $tmpTableSecondaryContacts
+        ";
 
         \CRM_Core_DAO::executeQuery($sql);
         //keep going as long as we are adding
@@ -174,7 +175,7 @@ class Check extends AutoSubscriber {
    * Implement WHERE Clause - we find the contacts for whom this contact has permission and
    * specifically give permission to them
    */
-  function hook_civicrm_aclWhereClause($type, &$tables, &$whereTables, &$contactID, &$where) {
+  function aclWhereClause($type, &$tables, &$whereTables, &$contactID, &$where) {
     if (!$contactID) {
       return;
     }
@@ -212,7 +213,8 @@ class Check extends AutoSubscriber {
       return;
     }
 
-    if ($apiRequest->getEntityName() !== 'Contact') {
+    $contactTypes = $this->getContactTypes();
+    if (!in_array($apiRequest->getEntityName(), $contactTypes)) {
       return;
     }
 
@@ -251,7 +253,9 @@ class Check extends AutoSubscriber {
     }
 
     // Contact.getFields/getActions should be allowed if contact can see/edit one or more contacts
-    if (in_array($apiRequest->getEntityName(), ['Contact', 'Email'])
+    $entityTypes = $this->getContactTypes();
+    $entityTypes = array_merge($entityTypes, ['Email', 'Relationship']);
+    if (in_array($apiRequest->getEntityName(), $entityTypes)
       && in_array($apiRequest->getActionName(), ['getFields', 'getActions'])) {
 
       $loggedInContactID = \CRM_Core_Session::getLoggedInContactID();
@@ -282,12 +286,17 @@ class Check extends AutoSubscriber {
         $permissionType = \CRM_Core_Permission::VIEW;
     }
 
-    $contact = Contact::get(FALSE)
-      ->addSelect('id', 'contact_type')
-      ->addWhere('id', '=', $loggedInContactID)
-      ->execute()
-      ->first();
-    $this->buildPermissionsTable($contact['id'], $permissionType);
+    $this->buildPermissionsTable($loggedInContactID, $permissionType);
   }
 
+  /**
+   * Get Basic Contact Types
+   * 
+   * @return array
+   */
+  private function getContactTypes() : array {
+    $contactTypes = \CRM_Contact_BAO_ContactType::basicTypes();
+    $contactTypes[] = 'Contact';
+    return $contactTypes;
+  }
 }
