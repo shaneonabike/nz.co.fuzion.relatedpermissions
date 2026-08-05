@@ -35,26 +35,15 @@ class Check extends AutoSubscriber {
    */
   private function buildPermissionsTable(int $contactID, int $type) {
     static $tempTables = [];
-    $dateKey = date('dhis');
     if (!empty($tempTables[$contactID][$type])) {
       return $tempTables[$contactID][$type]['permissioned_contacts'];
     }
     else {
-      $this->tmpTableName = 'my_relationships_' . $contactID . '_' . rand(10000, 100000);
-      $sql = "CREATE TEMPORARY TABLE $this->tmpTableName (
-     `contact_id` INT(10) NOT NULL,
-     PRIMARY KEY (`contact_id`)
-    )";
+      $sql = "`contact_id` INT(10) NOT NULL, PRIMARY KEY (`contact_id`)";
+      $this->tmpTableName = \CRM_Utils_SQL_TempTable::build()->createWithColumns($sql)->getName();
 
-      \CRM_Core_DAO::executeQuery($sql);
-      $tmpTableSecondaryContacts = 'my_secondary_relationships' . $dateKey . rand(10000, 100000);
-      $sql = "CREATE TEMPORARY TABLE $tmpTableSecondaryContacts (
-     `contact_id` INT(10) NOT NULL,
-     PRIMARY KEY (`contact_id`),
-     `contact_type` VARCHAR(50) NULL DEFAULT NULL
-    )";
-
-      \CRM_Core_DAO::executeQuery($sql);
+      $sql = "`contact_id` INT(10) NOT NULL, PRIMARY KEY (`contact_id`), `contact_type` VARCHAR(50) NULL DEFAULT NULL";
+      $tmpTableSecondaryContacts = \CRM_Utils_SQL_TempTable::build()->createWithColumns($sql)->getName();
     }
     $tempTables[$contactID][$type]['permissioned_contacts'] = $this->tmpTableName;
     $tempTables[$contactID][$type]['permissioned_secondary_contacts'] = $tmpTableSecondaryContacts;
