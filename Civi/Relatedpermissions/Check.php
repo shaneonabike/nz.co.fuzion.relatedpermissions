@@ -256,7 +256,8 @@ class Check extends AutoSubscriber {
     $entityTypes = $this->getContactTypes();
     $entityTypes = array_merge($entityTypes, ['Email', 'Relationship']);
     if (in_array($apiRequest->getEntityName(), $entityTypes)
-      && in_array($apiRequest->getActionName(), ['getFields', 'getActions'])) {
+      // Deliberately not including "create" here! "Related permissions" presumes an existing record, and if we allowed create, they could add any contact.
+      && in_array($apiRequest->getActionName(), ['getFields', 'getActions', 'save', 'update'])) {
 
       $loggedInContactID = \CRM_Core_Session::getLoggedInContactID();
       if (!\CRM_Core_Permission::check('edit all contacts') && $loggedInContactID) {
