@@ -8,7 +8,7 @@ use CRM_Relatedpermissions_ExtensionUtil as E;
 
 class Check extends AutoSubscriber {
 
-  public static function getSubscribedEvents() {
+  public static function getSubscribedEvents(): array {
     return [
       '&hook_civicrm_aclWhereClause' => ['aclWhereClause'],
       'civi.api4.authorizeRecord' => ['onApiAuthorizeRecord'],
