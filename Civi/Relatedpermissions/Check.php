@@ -265,8 +265,11 @@ class Check extends AutoSubscriber {
   }
 
   private function buildPermissions(string $actionName, int $loggedInContactID) {
+    if ($actionName == 'create') {
+      return;
+    }
+
     switch ($actionName) {
-      case 'create':
       case 'update':
       case 'save':
         $permissionType = \CRM_Core_Permission::EDIT;
